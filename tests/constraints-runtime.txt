@@ -1,0 +1,3 @@
+# The HA 2024.12 / 2025.12 CI matrix uses aiodns 3.x, which imports result
+# classes removed in pycares 5.x. Keep the compatible API for these old releases.
+pycares==4.11.0

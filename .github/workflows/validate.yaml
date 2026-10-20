@@ -46,14 +46,26 @@ jobs:
         run: python -c "import yaml; yaml.safe_load(open('custom_components/bytewatt/services.yaml'))"
 
   pytest:
-    name: Unit tests
+    name: Tests (HA ${{ matrix.homeassistant }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - homeassistant: "2024.12.0"
+            python: "3.12"
+          - homeassistant: "2025.12.0"
+            python: "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
-      - name: Install test dependencies
-        run: pip install --quiet -r requirements_test.txt
-      - name: Run pytest
+          python-version: ${{ matrix.python }}
+      - name: Install the exact Home Assistant runtime
+        run: >-
+          pip install "homeassistant==${{ matrix.homeassistant }}"
+          --constraint "https://raw.githubusercontent.com/home-assistant/core/${{ matrix.homeassistant }}/homeassistant/package_constraints.txt"
+          --constraint tests/constraints-runtime.txt
+          pycryptodome pytest==8.3.4 pytest-asyncio==0.24.0
+      - name: Run all tests, including the real options flow and coordinator reload
         run: pytest -q --tb=short

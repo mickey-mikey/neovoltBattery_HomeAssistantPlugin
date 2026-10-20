@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import sys
+from types import ModuleType
 
 import pytest
 
@@ -16,20 +18,39 @@ pytest.importorskip("Crypto.Cipher")
 pytest.importorskip("aiohttp")
 
 
-def _load_module(rel_path: str, name: str):
+def _load_module(rel_path: str, name: str) -> ModuleType:
     here = os.path.dirname(__file__)
     path = os.path.abspath(os.path.join(here, "..", "custom_components", "bytewatt", rel_path))
-    spec = importlib.util.spec_from_file_location(name, path)
+    # Preserve relative imports within the API without executing the parent
+    # integration's __init__.py. Both modules must share this same package so
+    # the client uses the exact authentication module exercised by these tests.
+    package_name = "_bytewatt_test_api"
+    if package_name not in sys.modules:
+        package = ModuleType(package_name)
+        package.__path__ = [os.path.dirname(path)]
+        package.__package__ = package_name
+        package.__spec__ = importlib.util.spec_from_loader(
+            package_name, loader=None, is_package=True
+        )
+        sys.modules[package_name] = package
+    qualified_name = f"{package_name}.{name}"
+    spec = importlib.util.spec_from_file_location(qualified_name, path)
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    sys.modules[qualified_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(qualified_name, None)
+        raise
     return module
 
 
 # neovolt_client imports homeassistant.helpers.aiohttp_client at module load —
 # skip cleanly when HA isn't installed (bare sandbox).
 try:
-    neovolt_auth = _load_module("api/neovolt_auth.py", "bytewatt_neovolt_auth")
-    neovolt_client = _load_module("api/neovolt_client.py", "bytewatt_neovolt_client")
+    neovolt_auth = _load_module("api/neovolt_auth.py", "neovolt_auth")
+    neovolt_client = _load_module("api/neovolt_client.py", "neovolt_client")
 except ModuleNotFoundError as exc:
     pytest.skip(f"Module not installed in this environment: {exc.name}", allow_module_level=True)
 
