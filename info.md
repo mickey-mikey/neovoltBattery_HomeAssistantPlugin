@@ -2,7 +2,7 @@
 
 Monitor and control your Byte-Watt / Neovolt battery system through Home Assistant.
 
-Requires Home Assistant **2024.11.0** or later.
+Requires Home Assistant **2024.12.0** or later.
 
 {% if installed %}
 ## Integration is installed
