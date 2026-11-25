@@ -548,7 +548,9 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
             "timestamp": recovery_start_ts.isoformat(),
         })
 
-        if self._notify_on_recovery:
+        # The daily scheduled run is routine: it posts no start or success
+        # notice. A failed scheduled run still reports through the failure path.
+        if self._notify_on_recovery and not is_scheduled:
             async_create(
                 self.hass,
                 f"ByteWatt integration is attempting to reconnect ({recovery_type} recovery)",
@@ -583,13 +585,16 @@ class ByteWattDataUpdateCoordinator(DataUpdateCoordinator):
                     "timestamp": dt_util.utcnow().isoformat(),
                 })
                 if self._notify_on_recovery:
+                    # Clear any earlier recovery notice now that the API answers;
+                    # only an unscheduled recovery announces its success.
                     async_dismiss(self.hass, NOTIFICATION_RECOVERY)
-                    async_create(
-                        self.hass,
-                        "ByteWatt integration successfully reconnected to the API",
-                        title="ByteWatt Recovery Success",
-                        notification_id=NOTIFICATION_RECOVERY,
-                    )
+                    if not is_scheduled:
+                        async_create(
+                            self.hass,
+                            "ByteWatt integration successfully reconnected to the API",
+                            title="ByteWatt Recovery Success",
+                            notification_id=NOTIFICATION_RECOVERY,
+                        )
             else:
                 # Refresh "completed" without advancing last_successful_update
                 # — the API is still broken. Surface as a failure.
